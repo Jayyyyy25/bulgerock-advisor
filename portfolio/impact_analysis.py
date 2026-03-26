@@ -36,12 +36,29 @@ Respond with ONLY a valid JSON object — no preamble, no markdown:
 {{
     "portfolio_impact_score": <integer -10 to 10>,
     "impact_severity": "<Critical | High | Moderate | Low | Minimal>",
+    "estimated_portfolio_loss_pct": <number, negative = loss, e.g. -8.5>,
+    "asset_class_impacts": [
+        {{
+            "asset_class": "<name matching keys in Asset Allocation above>",
+            "estimated_change_pct": <number, negative = loss, e.g. -15.0>
+        }}
+    ],
+    "rebalancing_actions": [
+        {{
+            "action": "<BUY | REDUCE | HOLD>",
+            "asset_class": "<name>",
+            "from_pct": <current allocation % as number>,
+            "to_pct": <recommended target allocation % as number>,
+            "rationale": "<one short sentence>"
+        }}
+    ],
     "vulnerable_holdings": [{{"security_name": "", "reason": "", "estimated_impact": "<High|Medium|Low>"}}],
     "resilient_holdings":  [{{"security_name": "", "reason": "", "estimated_impact": "<Positive|Neutral>"}}],
     "executive_summary": "<2-3 sentences an RM can share with the client>",
     "recommended_actions": ["<action 1>", "<action 2>", "<action 3>"]
 }}
 
+Only include asset classes that are actually present in the portfolio. For rebalancing_actions, only include BUY or REDUCE (omit HOLD entries).
 DISCLAIMER: AI-assisted assessment only, not financial advice."""
 
         try:
@@ -59,10 +76,30 @@ DISCLAIMER: AI-assisted assessment only, not financial advice."""
             result = json.loads(match.group(0))
             result.setdefault("portfolio_impact_score", 0)
             result.setdefault("impact_severity", "Unknown")
+            result.setdefault("estimated_portfolio_loss_pct", 0)
+            result.setdefault("asset_class_impacts", [])
+            result.setdefault("rebalancing_actions", [])
             result.setdefault("vulnerable_holdings", [])
             result.setdefault("resilient_holdings", [])
             result.setdefault("executive_summary", "Analysis unavailable.")
             result.setdefault("recommended_actions", [])
+
+            # Enrich asset_class_impacts with dollar values computed from known portfolio data
+            for item in result["asset_class_impacts"]:
+                ac = item.get("asset_class", "")
+                current_pct = float(asset_allocation.get(ac, 0))
+                current_value = total_value * current_pct / 100
+                change_pct = float(item.get("estimated_change_pct", 0))
+                item["current_pct"] = current_pct
+                item["current_value"] = current_value
+                item["estimated_change_value"] = current_value * change_pct / 100
+
+            # Enrich rebalancing_actions with trade dollar size
+            for action in result["rebalancing_actions"]:
+                from_pct = float(action.get("from_pct", 0))
+                to_pct = float(action.get("to_pct", 0))
+                action["trade_value"] = abs(to_pct - from_pct) * total_value / 100
+
             return result
 
         except Exception as e:
