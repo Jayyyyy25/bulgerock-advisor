@@ -44,6 +44,38 @@ class AIPortfolioParser:
     def __init__(self):
         self.client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
+    def extract_portfolio_name(self, file_path: str) -> str:
+        """Extract a suitable portfolio name from the first two pages of the PDF."""
+        text = ""
+        with pdfplumber.open(file_path) as pdf:
+            for page in pdf.pages[:2]:
+                page_text = page.extract_text()
+                if page_text:
+                    text += page_text + "\n"
+
+        if not text.strip():
+            return "Unknown Portfolio"
+
+        try:
+            response = self.client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=64,
+                temperature=0,
+                messages=[{
+                    "role": "user",
+                    "content": (
+                        "Extract the client or portfolio name from this custodian statement header. "
+                        "Return ONLY the name — no explanation, no punctuation, no quotes. "
+                        "Use 2–4 words maximum. If unclear, return 'Unknown Portfolio'.\n\n"
+                        f"{text[:2000]}"
+                    ),
+                }],
+            )
+            name = response.content[0].text.strip().strip('"').strip("'")
+            return name if name else "Unknown Portfolio"
+        except Exception:
+            return "Unknown Portfolio"
+
     def process_pdf(self, file_path: str) -> pd.DataFrame:
         all_dfs = []
         last_error = None
