@@ -1,0 +1,12 @@
+cust_client_id,ISIN,security_name,category,sector,sub_account,units,value_usd,report_date
+CLI003,US4592001014,JPMorgan Chase & Co,EQ,Financials,IRA,120,22000.00,2024-01-15
+CLI003,US0231351067,Amazon.com Inc,EQ,Consumer Discretionary,IRA,30,5500.00,2024-01-15
+CLI003,US912810TD00,US Treasury 10Y,FI,Government,Taxable,50,48000.00,2024-01-15
+CLI003,US9128284S67,US Treasury 2Y,FI,Government,Taxable,30,29500.00,2024-01-15
+CLI003,CASH000000001,USD Cash,CA,Cash,Taxable,1,18000.00,2024-01-15
+CLI005,US5949181045,Microsoft Corp,EQ,Technology,Taxable,100,37500.00,2024-01-15
+CLI005,US02079K3059,Alphabet Inc Class A,EQ,Technology,Taxable,40,58000.00,2024-01-15
+CLI005,US4726571151,Johnson & Johnson,EQ,Healthcare,IRA,150,21000.00,2024-01-15
+CLI005,US0378331005,Apple Inc,EQ,Technology,Taxable,60,11400.00,2024-01-15
+CLI005,US9128286R41,US Treasury 5Y,FI,Government,Taxable,40,39000.00,2024-01-15
+CLI005,CASH000000002,USD Cash,CA,Cash,IRA,1,6500.00,2024-01-15

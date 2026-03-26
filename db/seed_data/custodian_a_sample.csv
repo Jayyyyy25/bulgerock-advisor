@@ -1,0 +1,14 @@
+AccountID,ClientRef,Symbol,SecurityName,AssetType,Sector,AccountCategory,Shares,MarketValue,Date
+ACC001,CLI001,AAPL,Apple Inc,Equity,Technology,Taxable,150,28500.00,2024-01-15
+ACC001,CLI001,MSFT,Microsoft Corp,Equity,Technology,Taxable,80,30000.00,2024-01-15
+ACC001,CLI001,TLT,iShares 20Y Treasury ETF,Fixed Income,Government,Taxable,200,21000.00,2024-01-15
+ACC001,CLI001,AMZN,Amazon.com Inc,Equity,Consumer Discretionary,IRA,60,11000.00,2024-01-15
+ACC001,CLI001,CASH,USD Cash,Cash,Cash,Taxable,1,15000.00,2024-01-15
+ACC002,CLI002,VTI,Vanguard Total Stock ETF,Equity,Diversified,Taxable,300,72000.00,2024-01-15
+ACC002,CLI002,BND,Vanguard Total Bond ETF,Fixed Income,Diversified,Taxable,400,32000.00,2024-01-15
+ACC002,CLI002,GLD,SPDR Gold Shares,Alternatives,Commodities,IRA,100,19500.00,2024-01-15
+ACC002,CLI002,CASH,USD Cash,Cash,Cash,Taxable,1,8000.00,2024-01-15
+ACC003,CLI004,NVDA,NVIDIA Corp,Equity,Technology,Taxable,200,88000.00,2024-01-15
+ACC003,CLI004,META,Meta Platforms,Equity,Communication Services,Taxable,120,52000.00,2024-01-15
+ACC003,CLI004,TSLA,Tesla Inc,Equity,Consumer Discretionary,Taxable,300,63000.00,2024-01-15
+ACC003,CLI004,CASH,USD Cash,Cash,Cash,IRA,1,12000.00,2024-01-15
