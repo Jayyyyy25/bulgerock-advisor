@@ -1,0 +1,77 @@
+{
+  "client_id": "Stmt1_NorthernTrust_PrivateWealth_Client",
+  "source_file": "Stmt1_NorthernTrust_PrivateWealth.pdf",
+  "total_value": 11308155.68,
+  "asset_allocation": {
+    "Alternatives": 20.26,
+    "Cash": 14.59,
+    "Equities": 39.43,
+    "Fixed Income": 28.61,
+    "Liabilities": -10.61,
+    "Structured Products": 7.72
+  },
+  "sector_concentration": {
+    "Communication Services": 7.72,
+    "Consumer Discretionary": 8.86,
+    "Diversified": 32.64,
+    "Energy": 3.77,
+    "Financials": 3.44,
+    "Health Care": 6.48,
+    "Information Technology": 25.97,
+    "Materials": 8.34,
+    "Real Estate": 2.77
+  },
+  "geographic_exposure": {
+    "China": 4.15,
+    "Europe": 9.76,
+    "Global": 43.14,
+    "India": 7.9,
+    "USA": 35.05
+  },
+  "top_10_holdings": [
+    {
+      "security_name": "Cash & Equivalents",
+      "market_value": 1650330.2
+    },
+    {
+      "security_name": "Structured Products",
+      "market_value": 780000.0
+    },
+    {
+      "security_name": "Vanguard S&P500 ETF",
+      "market_value": 552585.0
+    },
+    {
+      "security_name": "Millennium Global Macro Fund",
+      "market_value": 500000.0
+    },
+    {
+      "security_name": "US Treasury 4.25% 2028",
+      "market_value": 494600.0
+    },
+    {
+      "security_name": "Taiwan Semicon ADR",
+      "market_value": 467040.0
+    },
+    {
+      "security_name": "Tesla Inc",
+      "market_value": 459725.0
+    },
+    {
+      "security_name": "iShares Global HY Bond ETF",
+      "market_value": 454280.0
+    },
+    {
+      "security_name": "iShares MSCI EM ETF",
+      "market_value": 376550.0
+    },
+    {
+      "security_name": "Singapore Govt 3.00% 2029",
+      "market_value": 366985.6
+    }
+  ],
+  "risk_metrics": {
+    "estimated_volatility_pct": 10.91,
+    "estimated_sharpe_ratio": 1.16
+  }
+}

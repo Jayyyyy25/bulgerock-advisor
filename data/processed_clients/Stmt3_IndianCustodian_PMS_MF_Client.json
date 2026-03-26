@@ -1,0 +1,74 @@
+{
+  "client_id": "Stmt3_IndianCustodian_PMS_MF_Client",
+  "source_file": "Stmt3_IndianCustodian_PMS_MF.pdf",
+  "total_value": 235278752.0,
+  "asset_allocation": {
+    "Alternatives": 10.65,
+    "Cash": 13.66,
+    "Equities": 64.18,
+    "Fixed Income": 10.49,
+    "Structured Products": 1.02
+  },
+  "sector_concentration": {
+    "Communication Services": 3.43,
+    "Consumer Discretionary": 16.17,
+    "Consumer Staples": 1.8,
+    "Diversified": 33.65,
+    "Energy": 2.4,
+    "Financials": 14.57,
+    "Health Care": 3.05,
+    "Industrials": 9.85,
+    "Information Technology": 11.02,
+    "Materials": 3.37,
+    "Utilities": 0.68
+  },
+  "geographic_exposure": {
+    "India": 100.0
+  },
+  "top_10_holdings": [
+    {
+      "security_name": "Kotak Liquid Fund \u2014 Direct Growth",
+      "market_value": 22350422.0
+    },
+    {
+      "security_name": "Mutual Funds \u2014 Equity",
+      "market_value": 18542300.0
+    },
+    {
+      "security_name": "AIF \u2014 Category III (Long/Short)",
+      "market_value": 15000000.0
+    },
+    {
+      "security_name": "Listed Bonds (NSE/BSE)",
+      "market_value": 10875000.0
+    },
+    {
+      "security_name": "Cash / Liquid (Bank + MF)",
+      "market_value": 9781150.0
+    },
+    {
+      "security_name": "Mutual Funds \u2014 Debt/Liquid",
+      "market_value": 9215600.0
+    },
+    {
+      "security_name": "HDFC Bank Ltd",
+      "market_value": 8798820.0
+    },
+    {
+      "security_name": "Unlisted Equity / Pre-IPO",
+      "market_value": 8500000.0
+    },
+    {
+      "security_name": "Nykaa (FSN E-Commerce) \u2014 Listed Locked",
+      "market_value": 8500000.0
+    },
+    {
+      "security_name": "ICICI Bank Ltd",
+      "market_value": 8118750.0
+    }
+  ],
+  "risk_metrics": {
+    "estimated_volatility_pct": 14.63,
+    "estimated_sharpe_ratio": 1.26
+  }
+}

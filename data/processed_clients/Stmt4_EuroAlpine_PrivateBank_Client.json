@@ -1,0 +1,68 @@
+{
+  "client_id": "Stmt4_EuroAlpine_PrivateBank_Client",
+  "source_file": "Stmt4_EuroAlpine_PrivateBank.pdf",
+  "total_value": 10255791.93,
+  "asset_allocation": {
+    "Alternatives": 29.54,
+    "Cash": 16.33,
+    "Equities": 37.3,
+    "Fixed Income": 24.09,
+    "Liabilities": -17.55,
+    "Structured Products": 10.28
+  },
+  "sector_concentration": {
+    "Diversified": 79.67,
+    "Energy": 1.34,
+    "Materials": 18.99
+  },
+  "geographic_exposure": {
+    "Europe": 18.22,
+    "Global": 81.78
+  },
+  "top_10_holdings": [
+    {
+      "security_name": "Global Equities",
+      "market_value": 2485320.0
+    },
+    {
+      "security_name": "Bonds \u2014 Investment Grade",
+      "market_value": 1985600.0
+    },
+    {
+      "security_name": "European Equities",
+      "market_value": 1248750.0
+    },
+    {
+      "security_name": "Money Market & Liquidity",
+      "market_value": 892450.0
+    },
+    {
+      "security_name": "Cash (Client Account)",
+      "market_value": 782280.0
+    },
+    {
+      "security_name": "Private Equity & PE Funds",
+      "market_value": 625000.0
+    },
+    {
+      "security_name": "Polar Capital Global Alpha Long/Short Equity",
+      "market_value": 567840.0
+    },
+    {
+      "security_name": "Invesco Physical Gold ETC",
+      "market_value": 562598.4
+    },
+    {
+      "security_name": "Bonds \u2014 High Yield",
+      "market_value": 485200.0
+    },
+    {
+      "security_name": "Commodities",
+      "market_value": 482300.0
+    }
+  ],
+  "risk_metrics": {
+    "estimated_volatility_pct": 10.59,
+    "estimated_sharpe_ratio": 1.15
+  }
+}

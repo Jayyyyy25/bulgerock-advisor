@@ -1,0 +1,77 @@
+{
+  "client_id": "Stmt2_EastAsia_WealthMgmt_Client",
+  "source_file": "Stmt2_EastAsia_WealthMgmt.pdf",
+  "total_value": 15760701.100000001,
+  "asset_allocation": {
+    "Alternatives": 10.69,
+    "Cash": 14.65,
+    "Equities": 59.9,
+    "Fixed Income": 25.4,
+    "Liabilities": -15.86,
+    "Structured Products": 5.21
+  },
+  "sector_concentration": {
+    "Communication Services": 1.0,
+    "Consumer Discretionary": 18.58,
+    "Consumer Staples": 1.33,
+    "Diversified": 21.17,
+    "Energy": 2.56,
+    "Financials": 14.75,
+    "Industrials": 3.82,
+    "Information Technology": 10.74,
+    "Materials": 6.46,
+    "Real Estate": 19.6
+  },
+  "geographic_exposure": {
+    "China": 11.69,
+    "Global": 74.65,
+    "India": 7.74,
+    "USA": 5.92
+  },
+  "top_10_holdings": [
+    {
+      "security_name": "Equity Unit Trusts / Funds",
+      "market_value": 1388200.0
+    },
+    {
+      "security_name": "Fixed Deposit \u2014 SGD 12-month",
+      "market_value": 1000000.0
+    },
+    {
+      "security_name": "Singapore Govt Bond 2.875%",
+      "market_value": 988500.0
+    },
+    {
+      "security_name": "Hedge Funds",
+      "market_value": 967200.0
+    },
+    {
+      "security_name": "Alibaba Group ADS",
+      "market_value": 896232.0
+    },
+    {
+      "security_name": "TSMC ADR",
+      "market_value": 801800.2
+    },
+    {
+      "security_name": "Commodities",
+      "market_value": 718320.0
+    },
+    {
+      "security_name": "HDFC Bank Ltd ADR",
+      "market_value": 645321.6
+    },
+    {
+      "security_name": "Capitaland Integrated Comm",
+      "market_value": 523600.0
+    },
+    {
+      "security_name": "Ascendas REIT",
+      "market_value": 502500.0
+    }
+  ],
+  "risk_metrics": {
+    "estimated_volatility_pct": 13.98,
+    "estimated_sharpe_ratio": 1.24
+  }
+}
