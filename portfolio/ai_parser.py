@@ -46,16 +46,21 @@ class AIPortfolioParser:
 
     def process_pdf(self, file_path: str) -> pd.DataFrame:
         all_dfs = []
+        last_error = None
         with pdfplumber.open(file_path) as pdf:
             for i, page in enumerate(pdf.pages):
                 print(f"  Parsing page {i + 1}...")
                 page_text = page.extract_text()
                 if page_text:
-                    df = self._parse_page_with_claude(page_text)
+                    df, err = self._parse_page_with_claude(page_text)
+                    if err:
+                        last_error = err
                     if not df.empty:
                         all_dfs.append(df)
 
         if not all_dfs:
+            if last_error:
+                raise RuntimeError(f"Claude extraction failed: {last_error}")
             return pd.DataFrame(columns=CANONICAL_COLUMNS)
 
         master_df = pd.concat(all_dfs, ignore_index=True)
@@ -157,15 +162,15 @@ class AIPortfolioParser:
             raw = response.content[0].text
             match = re.search(r"\[.*\]", raw, re.DOTALL)
             if not match:
-                return pd.DataFrame(columns=CANONICAL_COLUMNS)
+                return pd.DataFrame(columns=CANONICAL_COLUMNS), None
 
             data = json.loads(match.group(0))
             df = pd.DataFrame(data)
             for col in CANONICAL_COLUMNS:
                 if col not in df.columns:
                     df[col] = None
-            return df[CANONICAL_COLUMNS]
+            return df[CANONICAL_COLUMNS], None
 
         except Exception as e:
             print(f"  Page parse error: {e}")
-            return pd.DataFrame(columns=CANONICAL_COLUMNS)
+            return pd.DataFrame(columns=CANONICAL_COLUMNS), str(e)
