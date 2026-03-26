@@ -1,11 +1,9 @@
 """
 Tool: query_clients
-Retrieves client profiles from CRM data with dynamic filtering.
-All user-provided values use parameterized queries; only structural SQL is f-string composed.
+Retrieves client profiles from Zoho CRM with dynamic filtering.
 """
 import json
-from sqlalchemy import text
-from ingestion.db_client import engine
+from agent_tools.zoho_client import search_contacts
 
 
 def query_clients(
@@ -16,41 +14,16 @@ def query_clients(
     max_aum: float = None,
     limit: int = 10,
 ) -> str:
-    conditions = ["1=1"]
-    params: dict = {"limit": min(limit, 50)}  # cap at 50 to prevent runaway queries
+    clients = search_contacts(
+        name_contains=name_contains,
+        risk_profile=risk_profile,
+        advisor_id=advisor_id,
+        min_aum=min_aum,
+        max_aum=max_aum,
+        limit=limit,
+    )
 
-    if name_contains:
-        conditions.append("LOWER(full_name) LIKE :name_pattern")
-        params["name_pattern"] = f"%{name_contains.lower()}%"
+    if not clients:
+        return json.dumps({"message": "No clients found matching the given filters."})
 
-    if advisor_id:
-        conditions.append("advisor_id = :advisor_id")
-        params["advisor_id"] = advisor_id
-
-    if risk_profile:
-        conditions.append("risk_profile = :risk_profile")
-        params["risk_profile"] = risk_profile.lower()
-
-    if min_aum is not None:
-        conditions.append("aum >= :min_aum")
-        params["min_aum"] = min_aum
-
-    if max_aum is not None:
-        conditions.append("aum <= :max_aum")
-        params["max_aum"] = max_aum
-
-    where_clause = " AND ".join(conditions)
-    sql = f"""
-        SELECT client_id, full_name, email, phone, risk_profile, advisor_id,
-               aum, created_at
-        FROM clients
-        WHERE {where_clause}
-        ORDER BY aum DESC NULLS LAST
-        LIMIT :limit
-    """
-
-    with engine.connect() as conn:
-        rows = conn.execute(text(sql), params).mappings().all()
-
-    result = [dict(r) for r in rows]
-    return json.dumps(result, default=str)
+    return json.dumps(clients, default=str)
