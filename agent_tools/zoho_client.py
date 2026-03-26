@@ -1,9 +1,9 @@
 """
 Zoho CRM API client.
 Handles OAuth token refresh and contact search/fetch for client data.
+Uses the standard Contacts search endpoint (scope: ZohoCRM.modules.contacts.READ).
 """
 import os
-import json
 import requests
 from dotenv import load_dotenv
 
@@ -28,20 +28,20 @@ def _refresh_access_token() -> str:
     return _access_token
 
 
-def _get(path: str, params: dict = None) -> dict:
-    """Make an authenticated GET request, retrying once on 401."""
+def _get_token() -> str:
     global _access_token
     if not _access_token:
         _refresh_access_token()
+    return _access_token
 
-    headers = {"Authorization": f"Zoho-oauthtoken {_access_token}"}
+
+def _get(path: str, params: dict = None) -> dict:
+    """Authenticated GET with one automatic token refresh on 401."""
+    headers = {"Authorization": f"Zoho-oauthtoken {_get_token()}"}
     resp = requests.get(f"{_CRM_BASE}/{path}", headers=headers, params=params)
-
     if resp.status_code == 401:
-        _refresh_access_token()
-        headers["Authorization"] = f"Zoho-oauthtoken {_access_token}"
+        headers["Authorization"] = f"Zoho-oauthtoken {_refresh_access_token()}"
         resp = requests.get(f"{_CRM_BASE}/{path}", headers=headers, params=params)
-
     resp.raise_for_status()
     return resp.json()
 
@@ -52,7 +52,7 @@ def _record_to_client(r: dict) -> dict:
         "client_id":    r.get("Client_ID") or r.get("id"),
         "full_name":    r.get("Full_Name") or f"{r.get('First_Name', '')} {r.get('Last_Name', '')}".strip(),
         "email":        r.get("Email"),
-        "phone":        r.get("Phone"),
+        "phone":        r.get("Phone") or r.get("Mobile"),
         "risk_profile": (r.get("Risk_Profile") or "").lower(),
         "advisor_id":   r.get("Advisor_ID"),
         "aum":          r.get("AUM"),
@@ -74,51 +74,35 @@ def search_contacts(
     """
     limit = min(limit, 50)
 
-    # Build COQL query (Zoho's SQL-like query language)
-    conditions = ["Client_ID is not null"]
+    # Build criteria string for the search endpoint
+    # Format: (field:operator:value)AND(field:operator:value)
+    criteria_parts = []
 
     if name_contains:
-        conditions.append(f"Full_Name like '%{name_contains}%'")
+        criteria_parts.append(f"(Full_Name:contains:{name_contains})")
     if risk_profile:
-        conditions.append(f"Risk_Profile = '{risk_profile}'")
+        criteria_parts.append(f"(Risk_Profile:equals:{risk_profile})")
     if advisor_id:
-        conditions.append(f"Advisor_ID = '{advisor_id}'")
-    if min_aum is not None:
-        conditions.append(f"AUM >= {min_aum}")
-    if max_aum is not None:
-        conditions.append(f"AUM <= {max_aum}")
+        criteria_parts.append(f"(Advisor_ID:equals:{advisor_id})")
 
-    where = " and ".join(conditions)
-    coql = (
-        f"select Client_ID, Full_Name, First_Name, Last_Name, Email, Phone, "
-        f"Risk_Profile, AUM, Advisor_ID "
-        f"from Contacts where {where} limit {limit}"
-    )
+    if criteria_parts:
+        criteria = "AND".join(criteria_parts)
+        params = {"criteria": criteria, "per_page": limit}
+        data = _get("Contacts/search", params=params)
+    else:
+        # No filters — fetch all contacts
+        data = _get("Contacts", params={"per_page": limit})
 
-    resp = requests.post(
-        f"{_CRM_BASE}/coql",
-        headers={
-            "Authorization": f"Zoho-oauthtoken {_get_token()}",
-            "Content-Type": "application/json",
-        },
-        json={"select_query": coql},
-    )
-
-    if resp.status_code == 401:
-        _refresh_access_token()
-        resp = requests.post(
-            f"{_CRM_BASE}/coql",
-            headers={
-                "Authorization": f"Zoho-oauthtoken {_access_token}",
-                "Content-Type": "application/json",
-            },
-            json={"select_query": coql},
-        )
-
-    resp.raise_for_status()
-    data = resp.json()
     records = data.get("data", [])
-    return [_record_to_client(r) for r in records]
+    clients = [_record_to_client(r) for r in records]
+
+    # Apply AUM filters client-side (Zoho search doesn't support numeric range on custom fields)
+    if min_aum is not None:
+        clients = [c for c in clients if c["aum"] is not None and c["aum"] >= min_aum]
+    if max_aum is not None:
+        clients = [c for c in clients if c["aum"] is not None and c["aum"] <= max_aum]
+
+    return clients
 
 
 def get_contacts_by_client_ids(client_ids: list[str]) -> dict[str, dict]:
@@ -129,41 +113,11 @@ def get_contacts_by_client_ids(client_ids: list[str]) -> dict[str, dict]:
     if not client_ids:
         return {}
 
-    id_list = ", ".join(f"'{cid}'" for cid in client_ids)
-    coql = (
-        f"select Client_ID, Full_Name, First_Name, Last_Name, Email, Phone, "
-        f"Risk_Profile, AUM, Advisor_ID "
-        f"from Contacts where Client_ID in ({id_list}) limit 50"
-    )
+    # Fetch each client_id with OR criteria
+    criteria = "OR".join(f"(Client_ID:equals:{cid})" for cid in client_ids)
+    params = {"criteria": criteria, "per_page": min(len(client_ids), 50)}
+    data = _get("Contacts/search", params=params)
 
-    resp = requests.post(
-        f"{_CRM_BASE}/coql",
-        headers={
-            "Authorization": f"Zoho-oauthtoken {_get_token()}",
-            "Content-Type": "application/json",
-        },
-        json={"select_query": coql},
-    )
-
-    if resp.status_code == 401:
-        _refresh_access_token()
-        resp = requests.post(
-            f"{_CRM_BASE}/coql",
-            headers={
-                "Authorization": f"Zoho-oauthtoken {_access_token}",
-                "Content-Type": "application/json",
-            },
-            json={"select_query": coql},
-        )
-
-    resp.raise_for_status()
-    records = resp.json().get("data", [])
+    records = data.get("data", [])
     clients = [_record_to_client(r) for r in records]
     return {c["client_id"]: c for c in clients if c["client_id"]}
-
-
-def _get_token() -> str:
-    global _access_token
-    if not _access_token:
-        _refresh_access_token()
-    return _access_token
