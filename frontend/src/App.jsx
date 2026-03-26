@@ -172,7 +172,7 @@ export default function App() {
         </div>
 
         {/* Client list — scrollable, constrained by flex */}
-        <div className="flex-1 overflow-y-auto min-h-0 px-3 py-4">
+        <div className="flex-1 overflow-y-auto min-h-0 px-3 py-4 scrollbar-hide">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider px-3 mb-2">Clients</p>
           {loadingClients && (
             <div className="flex items-center justify-center py-8">
