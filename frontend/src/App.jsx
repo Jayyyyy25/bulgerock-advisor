@@ -47,6 +47,8 @@ export default function App() {
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState(null)
   const [uploadSuccess, setUploadSuccess] = useState(null)
+  const [portfolioName, setPortfolioName] = useState('')
+  const [asOfDate, setAsOfDate] = useState(new Date().toISOString().split('T')[0])
   const fileInputRef = useRef(null)
 
   const refreshClients = () =>
@@ -59,12 +61,18 @@ export default function App() {
       setUploadError('Please select a PDF file.')
       return
     }
+    if (!portfolioName.trim()) {
+      setUploadError('Please enter a portfolio name.')
+      return
+    }
     setUploading(true)
     setUploadError(null)
     setUploadSuccess(null)
 
     const form = new FormData()
     form.append('file', file)
+    form.append('portfolio_name', portfolioName.trim())
+    form.append('as_of_date', asOfDate)
 
     try {
       const res = await fetch(`${API_BASE}/api/upload`, { method: 'POST', body: form })
@@ -72,8 +80,8 @@ export default function App() {
       if (!res.ok) throw new Error(data.detail || 'Upload failed')
 
       await refreshClients()
-      selectClient(data.portfolio_id)
-      setUploadSuccess(`${data.holdings_extracted} holdings extracted`)
+      selectClient(data.client_id)
+      setUploadSuccess(data.skipped ? 'Already processed — loaded existing.' : `${data.holdings_extracted} holdings stored.`)
       setTimeout(() => setUploadSuccess(null), 4000)
     } catch (e) {
       setUploadError(e.message)
@@ -190,13 +198,26 @@ export default function App() {
         </div>
 
         {/* Upload PDF */}
-        <div className="px-3 py-4 border-t border-slate-800">
+        <div className="px-3 py-4 border-t border-slate-800 space-y-2">
           <input
             ref={fileInputRef}
             type="file"
             accept=".pdf"
             className="hidden"
             onChange={e => handleUpload(e.target.files?.[0])}
+          />
+          <input
+            type="text"
+            value={portfolioName}
+            onChange={e => setPortfolioName(e.target.value)}
+            placeholder="Portfolio name (e.g. Northern Trust)"
+            className="w-full px-2 py-1.5 rounded-md bg-slate-800 text-slate-200 text-xs placeholder-slate-500 border border-slate-700 focus:outline-none focus:border-indigo-500"
+          />
+          <input
+            type="date"
+            value={asOfDate}
+            onChange={e => setAsOfDate(e.target.value)}
+            className="w-full px-2 py-1.5 rounded-md bg-slate-800 text-slate-200 text-xs border border-slate-700 focus:outline-none focus:border-indigo-500"
           />
           <button
             onClick={() => !uploading && fileInputRef.current?.click()}
