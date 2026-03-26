@@ -1,15 +1,93 @@
 """
-Ingests a portfolio DataFrame (produced by AIPortfolioParser) into the PostgreSQL holdings table.
-Called after every PDF upload — the JSON stores top_10 for the web UI,
-this stores the full holdings for the Slack bot's query_portfolio tool.
+Ingests portfolio data into PostgreSQL.
+
+- ingest_portfolio()       — raw holdings DataFrame → holdings table
+- save_portfolio_snapshot() — derived analytics → portfolio_snapshots table
+- snapshot_exists()         — check before re-processing a PDF
 """
+import json
 from datetime import date
 from typing import Optional
 
+import numpy as np
 import pandas as pd
 from sqlalchemy import text
 
 from ingestion.db_client import engine
+
+
+def snapshot_exists(portfolio_name: str, as_of_date: date) -> bool:
+    """Return True if this (portfolio_name, as_of_date) has already been processed."""
+    sql = text("""
+        SELECT 1 FROM portfolio_snapshots
+        WHERE portfolio_name = :portfolio_name AND as_of_date = :as_of_date
+        LIMIT 1
+    """)
+    with engine.connect() as conn:
+        row = conn.execute(sql, {"portfolio_name": portfolio_name, "as_of_date": as_of_date}).first()
+    return row is not None
+
+
+def save_portfolio_snapshot(
+    portfolio_name: str,
+    as_of_date: date,
+    summary: dict,
+    zoho_client_id: Optional[str] = None,
+    source_file: Optional[str] = None,
+) -> None:
+    """
+    Upsert derived analytics into portfolio_snapshots.
+    If a snapshot for (portfolio_name, as_of_date) already exists it is overwritten.
+    """
+    sql = text("""
+        INSERT INTO portfolio_snapshots
+            (portfolio_name, zoho_client_id, source_file, as_of_date,
+             total_value, asset_allocation, sector_concentration,
+             geographic_exposure, top_10_holdings, risk_metrics)
+        VALUES
+            (:portfolio_name, :zoho_client_id, :source_file, :as_of_date,
+             :total_value, CAST(:asset_allocation AS jsonb), CAST(:sector_concentration AS jsonb),
+             CAST(:geographic_exposure AS jsonb), CAST(:top_10_holdings AS jsonb), CAST(:risk_metrics AS jsonb))
+        ON CONFLICT (portfolio_name, as_of_date)
+        DO UPDATE SET
+            zoho_client_id       = EXCLUDED.zoho_client_id,
+            source_file          = EXCLUDED.source_file,
+            total_value          = EXCLUDED.total_value,
+            asset_allocation     = EXCLUDED.asset_allocation,
+            sector_concentration = EXCLUDED.sector_concentration,
+            geographic_exposure  = EXCLUDED.geographic_exposure,
+            top_10_holdings      = EXCLUDED.top_10_holdings,
+            risk_metrics         = EXCLUDED.risk_metrics,
+            ingested_at          = NOW()
+    """)
+
+    def _json(val, default):
+        """Serialize to JSON, converting numpy types to native Python."""
+        class _Enc(json.JSONEncoder):
+            def default(self, o):
+                if isinstance(o, (np.integer,)): return int(o)
+                if isinstance(o, (np.floating,)): return float(o)
+                if isinstance(o, np.ndarray): return o.tolist()
+                return super().default(o)
+        return json.dumps(val if val is not None else default, cls=_Enc)
+
+    total_value = summary.get("total_value")
+    if isinstance(total_value, (np.integer, np.floating)):
+        total_value = float(total_value)
+
+    with engine.begin() as conn:
+        conn.execute(sql, {
+            "portfolio_name":       portfolio_name,
+            "zoho_client_id":       zoho_client_id,
+            "source_file":          source_file,
+            "as_of_date":           as_of_date,
+            "total_value":          total_value,
+            "asset_allocation":     _json(summary.get("asset_allocation"), {}),
+            "sector_concentration": _json(summary.get("sector_concentration"), {}),
+            "geographic_exposure":  _json(summary.get("geographic_exposure"), {}),
+            "top_10_holdings":      _json(summary.get("top_10_holdings"), []),
+            "risk_metrics":         _json(summary.get("risk_metrics"), {}),
+        })
 
 
 def ingest_portfolio(
@@ -19,13 +97,13 @@ def ingest_portfolio(
     custodian: Optional[str] = None,
 ) -> int:
     """
-    Upsert all holdings rows into PostgreSQL.
+    Upsert all individual holdings rows into the holdings table.
 
     Args:
-        df:          Full holdings DataFrame from AIPortfolioParser.
-        client_id:   Zoho Client_ID (e.g. "CLI001") that owns these holdings.
-        as_of_date:  Statement date. Defaults to today.
-        custodian:   Custodian name derived from the source PDF filename.
+        df:         Full holdings DataFrame from AIPortfolioParser.
+        client_id:  portfolio_name used as the stable client identifier.
+        as_of_date: Statement date. Defaults to today.
+        custodian:  Derived from the source PDF filename.
 
     Returns:
         Number of rows upserted.
@@ -64,8 +142,6 @@ def ingest_portfolio(
 
         isin = row.get("isin")
         isin = str(isin).strip() if isin and str(isin).lower() not in ("none", "nan", "") else None
-
-        # Use ISIN as ticker if available, otherwise abbreviate security name
         ticker = isin or security_name[:20]
 
         rows.append({

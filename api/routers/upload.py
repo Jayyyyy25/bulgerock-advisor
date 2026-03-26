@@ -1,9 +1,8 @@
 """
 PDF upload endpoint.
-Processes a custodian PDF → saves top_10 summary JSON (for the web UI)
-→ upserts full holdings into PostgreSQL (for the Slack bot).
+- Checks if (portfolio_name, as_of_date) already exists → returns existing snapshot
+- Otherwise: processes PDF → saves raw holdings + derived snapshot to PostgreSQL
 """
-import json
 import os
 import shutil
 from datetime import date, datetime
@@ -11,91 +10,90 @@ from typing import Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
-from config import PROCESSED_DIR, RAW_DIR
-from ingestion.portfolio_ingestor import ingest_portfolio
+from config import RAW_DIR
+from ingestion.portfolio_ingestor import (
+    ingest_portfolio,
+    save_portfolio_snapshot,
+    snapshot_exists,
+)
 from portfolio.ai_parser import AIPortfolioParser
 from portfolio.analytics import PortfolioAnalytics
-from portfolio.cross_portfolio import CrossPortfolioAnalyzer
 
 router = APIRouter()
-
-_cross_portfolio: Optional[CrossPortfolioAnalyzer] = None
-
-
-def get_cross_portfolio() -> CrossPortfolioAnalyzer:
-    global _cross_portfolio
-    if _cross_portfolio is None:
-        _cross_portfolio = CrossPortfolioAnalyzer()
-    return _cross_portfolio
 
 
 @router.post("")
 async def upload_pdf(
     file: UploadFile = File(...),
-    zoho_client_id: Optional[str] = Form(default=None),
+    portfolio_name: str = Form(...),
     as_of_date: Optional[str] = Form(default=None),
+    zoho_client_id: Optional[str] = Form(default=None),
 ):
     """
     Upload a custodian PDF statement.
 
     - **file**: PDF file
-    - **zoho_client_id**: The Zoho CRM Client_ID this statement belongs to (e.g. CLI001)
-    - **as_of_date**: Statement date in YYYY-MM-DD format (defaults to today)
+    - **portfolio_name**: Stable name for this portfolio across periods (e.g. "Northern Trust")
+    - **as_of_date**: Statement date YYYY-MM-DD (defaults to today)
+    - **zoho_client_id**: Optional Zoho CRM Client_ID to link holdings (e.g. CLI001)
     """
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are accepted.")
 
-    # Parse as_of_date
     try:
         parsed_date = datetime.strptime(as_of_date, "%Y-%m-%d").date() if as_of_date else date.today()
     except ValueError:
         raise HTTPException(status_code=400, detail="as_of_date must be YYYY-MM-DD format.")
+
+    # Return existing snapshot without re-processing
+    if snapshot_exists(portfolio_name, parsed_date):
+        return {
+            "message":        "Snapshot already exists — skipped reprocessing.",
+            "portfolio_name": portfolio_name,
+            "as_of_date":     str(parsed_date),
+            "skipped":        True,
+        }
 
     # Save PDF to data/raw/
     save_path = RAW_DIR / file.filename
     with open(save_path, "wb") as out:
         shutil.copyfileobj(file.file, out)
 
-    # Extract holdings DataFrame
-    parser = AIPortfolioParser()
-    df = parser.process_pdf(str(save_path))
+    # Parse PDF → full holdings DataFrame
+    df = AIPortfolioParser().process_pdf(str(save_path))
     if df.empty:
         raise HTTPException(status_code=422, detail="Could not extract portfolio data from the PDF.")
 
-    # Generate summary (top_10 for web UI JSON)
+    # Compute derived analytics
     analytics = PortfolioAnalytics(df)
     summary = analytics.generate_summary()
+    custodian = os.path.splitext(file.filename)[0].replace("_", " ").strip()
 
-    # Save JSON for the web UI
-    stem = os.path.splitext(file.filename)[0]
-    portfolio_id = f"{stem}_Client"
-    client_record = {"client_id": portfolio_id, "zoho_client_id": zoho_client_id,
-                     "source_file": file.filename, **summary}
-    json_path = PROCESSED_DIR / f"{portfolio_id}.json"
-    json_path.write_text(json.dumps(client_record, indent=2, default=str))
+    # Persist derived analytics → portfolio_snapshots
+    save_portfolio_snapshot(
+        portfolio_name=portfolio_name,
+        as_of_date=parsed_date,
+        summary=summary,
+        zoho_client_id=zoho_client_id,
+        source_file=file.filename,
+    )
 
-    # Derive custodian name from filename
-    custodian = stem.replace("_", " ").strip()
-
-    # Ingest full holdings into PostgreSQL (only if a Zoho client ID is provided)
-    rows_upserted = 0
-    if zoho_client_id:
-        rows_upserted = ingest_portfolio(
-            df=df,
-            client_id=zoho_client_id,
-            as_of_date=parsed_date,
-            custodian=custodian,
-        )
-
-    # Refresh cross-portfolio index
-    get_cross_portfolio().reload()
+    # Persist raw holdings → holdings table
+    rows_upserted = ingest_portfolio(
+        df=df,
+        client_id=portfolio_name,
+        as_of_date=parsed_date,
+        custodian=custodian,
+    )
 
     return {
-        "message":         "PDF processed successfully.",
-        "portfolio_id":    portfolio_id,
-        "zoho_client_id":  zoho_client_id,
-        "as_of_date":      str(parsed_date),
+        "message":           "PDF processed and stored successfully.",
+        "client_id":         portfolio_name,
+        "portfolio_name":    portfolio_name,
+        "zoho_client_id":    zoho_client_id,
+        "as_of_date":        str(parsed_date),
         "holdings_extracted": len(df),
-        "holdings_in_db":  rows_upserted,
-        "total_value":     summary["total_value"],
+        "holdings_in_db":    rows_upserted,
+        "total_value":       summary["total_value"],
+        "skipped":           False,
     }

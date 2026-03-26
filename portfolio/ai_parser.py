@@ -35,7 +35,7 @@ SUMMARY_PATTERNS = [
     r"TOTAL$", r"^TOTAL$", r"^BONDS & FIXED INCOME$",
     r"^LISTED EQUITIES$", r"^EQUITIES$", r"^STRUCTURED PRODUCTS$",
     r"^CASH & DEPOSITS", r"^CASH TOTAL$", r"^CASH & EQUIVALENTS$", r"^REITS$",
-]
+]   
 SUMMARY_REGEX = "|".join(SUMMARY_PATTERNS)
 COVERAGE_THRESHOLD = 0.80
 
@@ -98,35 +98,54 @@ class AIPortfolioParser:
         return master_df.drop(columns=["clean_name"], errors="ignore")
 
     def _parse_page_with_claude(self, page_text: str) -> pd.DataFrame:
-        prompt = f"""You are a strict data extraction pipeline. Extract EVERY individual asset holding.
+        prompt = f"""
+        You are a strict data extraction and enrichment pipeline. Extract EVERY single asset holding from this page.
+        
+        ENGINEERING RULES:
+        1. Extract every individual stock, bond, fund, or asset row. Do NOT skip any items.
+        2. Do NOT extract category summary rows (e.g., "EQUITY TOTAL").
+        3. EXCEPTION: DO extract "Cash & Equivalents", "Structured Products", and "Liabilities".
+        4. CRITICAL DATA ENRICHMENT: You MUST infer 'sector' and 'geography' using ONLY the allowed options below.
+        
+        ALLOWED SECTORS (Strictly 11 GICS + Diversified):
+        - Information Technology
+        - Health Care
+        - Financials
+        - Consumer Discretionary
+        - Communication Services
+        - Industrials
+        - Consumer Staples
+        - Energy
+        - Utilities
+        - Real Estate
+        - Materials
+        - Diversified (Use ONLY for broad ETFs/Funds like S&P 500 or Global Macro)
+        - N/A (Use ONLY for Cash, Bonds, Liabilities, and Structured Products)
+        Note: Map Commodities or Crypto to 'Materials' or 'Financials' respectively.
 
-RULES:
-1. Extract every stock, bond, fund, or asset row. Do NOT skip items.
-2. Do NOT extract category summary rows (e.g., "EQUITY TOTAL").
-3. EXCEPTION: DO extract "Cash & Equivalents", "Structured Products", "Liabilities".
-4. Infer 'sector' and 'geography' using ONLY the allowed values below.
-
-ALLOWED SECTORS (11 GICS + Diversified):
-Information Technology, Health Care, Financials, Consumer Discretionary,
-Communication Services, Industrials, Consumer Staples, Energy, Utilities,
-Real Estate, Materials, Diversified, N/A
-
-ALLOWED GEOGRAPHIES:
-USA, China, Europe, India, Japan, Global, N/A
-
-OUTPUT — JSON array only, no markdown:
-[{{
-    "security_name": "String",
-    "isin": "String or null",
-    "quantity": <float, use 1.0 if unknown>,
-    "market_value": <float, negative for liabilities>,
-    "asset_class": "Equities | Fixed Income | Alternatives | Cash | Structured Products | Liabilities",
-    "sector": "<from allowed sectors>",
-    "geography": "<from allowed geographies>"
-}}]
-
-Page text:
-{page_text}"""
+        ALLOWED GEOGRAPHIES:
+        - USA
+        - China
+        - Europe
+        - India
+        - Japan
+        - Global (Use for broad funds, or if the country is not in the list above, e.g., Taiwan -> Global, Singapore -> Global)
+        - N/A (Use ONLY for Cash, Liabilities)
+        
+        Schema Requirements:
+        [{{
+            "security_name": "String",
+            "isin": "String or null",
+            "quantity": Float (use 1.0 for cash/loans if missing),
+            "market_value": Float (negative for liabilities),
+            "asset_class": "String (Equities, Fixed Income, Alternatives, Cash, Structured Products, Liabilities)",
+            "sector": "String (Must be EXACTLY from the Allowed Sectors list)",
+            "geography": "String (Must be EXACTLY from the Allowed Geographies list)"
+        }}]
+        
+        Page Text:
+        {page_text}
+        """
 
         try:
             response = self.client.messages.create(

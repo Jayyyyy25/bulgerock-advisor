@@ -1,5 +1,5 @@
 -- Pocket IA: Unified Client Knowledge Graph Schema
--- Clients live in Zoho CRM. Holdings and Policies live here.
+-- Clients live in Zoho CRM. Holdings, Policies, and Portfolio Snapshots live here.
 
 CREATE TABLE IF NOT EXISTS holdings (
     holding_id    SERIAL PRIMARY KEY,
@@ -31,7 +31,27 @@ CREATE TABLE IF NOT EXISTS policies (
     status          VARCHAR(20)  DEFAULT 'active'
 );
 
-CREATE INDEX IF NOT EXISTS idx_holdings_client   ON holdings(client_id);
-CREATE INDEX IF NOT EXISTS idx_holdings_date     ON holdings(as_of_date);
-CREATE INDEX IF NOT EXISTS idx_policies_renewal  ON policies(renewal_date);
-CREATE INDEX IF NOT EXISTS idx_policies_client   ON policies(client_id);
+-- Derived portfolio analytics — one row per (portfolio_name, as_of_date)
+-- portfolio_name is a stable identifier across multiple upload periods
+CREATE TABLE IF NOT EXISTS portfolio_snapshots (
+    snapshot_id          SERIAL        PRIMARY KEY,
+    portfolio_name       VARCHAR(200)  NOT NULL,
+    zoho_client_id       VARCHAR(50),
+    source_file          VARCHAR(200),
+    as_of_date           DATE          NOT NULL,
+    total_value          NUMERIC(18, 2),
+    asset_allocation     JSONB,
+    sector_concentration JSONB,
+    geographic_exposure  JSONB,
+    top_10_holdings      JSONB,
+    risk_metrics         JSONB,
+    ingested_at          TIMESTAMPTZ   DEFAULT NOW(),
+    UNIQUE (portfolio_name, as_of_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_holdings_client       ON holdings(client_id);
+CREATE INDEX IF NOT EXISTS idx_holdings_date         ON holdings(as_of_date);
+CREATE INDEX IF NOT EXISTS idx_policies_renewal      ON policies(renewal_date);
+CREATE INDEX IF NOT EXISTS idx_policies_client       ON policies(client_id);
+CREATE INDEX IF NOT EXISTS idx_snapshots_portfolio   ON portfolio_snapshots(portfolio_name);
+CREATE INDEX IF NOT EXISTS idx_snapshots_date        ON portfolio_snapshots(as_of_date);
