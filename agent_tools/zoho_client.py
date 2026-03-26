@@ -46,6 +46,70 @@ def _get(path: str, params: dict = None) -> dict:
     return resp.json()
 
 
+def _post(path: str, payload: dict) -> dict:
+    """Authenticated POST with one automatic token refresh on 401."""
+    headers = {
+        "Authorization": f"Zoho-oauthtoken {_get_token()}",
+        "Content-Type": "application/json",
+    }
+    resp = requests.post(f"{_CRM_BASE}/{path}", headers=headers, json=payload)
+    if resp.status_code == 401:
+        headers["Authorization"] = f"Zoho-oauthtoken {_refresh_access_token()}"
+        resp = requests.post(f"{_CRM_BASE}/{path}", headers=headers, json=payload)
+    resp.raise_for_status()
+    return resp.json()
+
+
+def create_contact(
+    first_name: str,
+    last_name: str,
+    email: str = None,
+    phone: str = None,
+    client_id: str = None,
+    risk_profile: str = None,
+    aum: float = None,
+    investment_objectives: str = None,
+    last_meeting_date: str = None,
+) -> dict:
+    """Create a single Contact in Zoho CRM. Returns the created record."""
+    record = {
+        "First_Name": first_name,
+        "Last_Name":  last_name,
+    }
+    if email:                 record["Email"]                  = email
+    if phone:                 record["Phone"]                  = phone
+    if client_id:             record["Client_ID"]              = client_id
+    if risk_profile:          record["Risk_Profile"]           = risk_profile
+    if aum is not None:       record["AUM"]                    = aum
+    if investment_objectives: record["Investment_Objectives"]  = investment_objectives
+    if last_meeting_date:     record["Last_Meeting_Date"]      = last_meeting_date
+
+    result = _post("Contacts", {"data": [record]})
+    return result.get("data", [{}])[0]
+
+
+def find_contact_by_client_id(client_id: str) -> dict | None:
+    """Return the Zoho Contact with matching Client_ID, or None if not found."""
+    try:
+        data = _get("Contacts/search", params={"criteria": f"(Client_ID:equals:{client_id})", "per_page": 1})
+        records = data.get("data", [])
+        return _record_to_client(records[0]) if records else None
+    except Exception:
+        return None
+
+
+def upsert_contact(client_id: str, **kwargs) -> dict:
+    """
+    Create a Zoho contact if Client_ID doesn't exist yet.
+    Skips creation if already present (Zoho doesn't support upsert on custom fields).
+    Returns the result data dict.
+    """
+    existing = find_contact_by_client_id(client_id)
+    if existing:
+        return {"status": "skipped", "client_id": client_id, "zoho_id": existing.get("zoho_id")}
+    return create_contact(client_id=client_id, **kwargs)
+
+
 def _record_to_client(r: dict) -> dict:
     """Normalize a Zoho Contact record to our internal client shape."""
     return {

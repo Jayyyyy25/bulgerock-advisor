@@ -61,30 +61,30 @@ export default function App() {
       setUploadError('Please select a PDF file.')
       return
     }
-    if (!portfolioName.trim()) {
-      setUploadError('Please enter a portfolio name.')
-      return
-    }
     setUploading(true)
     setUploadError(null)
     setUploadSuccess(null)
 
     const form = new FormData()
     form.append('file', file)
-    form.append('portfolio_name', portfolioName.trim())
+    if (portfolioName.trim()) form.append('portfolio_name', portfolioName.trim())
     form.append('as_of_date', asOfDate)
 
     try {
       const res = await fetch(`${API_BASE}/api/upload`, { method: 'POST', body: form })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || 'Upload failed')
+      if (!res.ok) {
+        const detail = data.detail
+        throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail) || 'Upload failed')
+      }
 
       await refreshClients()
       selectClient(data.client_id)
       setUploadSuccess(data.skipped ? 'Already processed — loaded existing.' : `${data.holdings_extracted} holdings stored.`)
       setTimeout(() => setUploadSuccess(null), 4000)
     } catch (e) {
-      setUploadError(e.message)
+      console.error('Upload error:', e)
+      setUploadError(e.message || 'Network error — is the backend running on port 8000?')
     } finally {
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -210,7 +210,7 @@ export default function App() {
             type="text"
             value={portfolioName}
             onChange={e => setPortfolioName(e.target.value)}
-            placeholder="Portfolio name (e.g. Northern Trust)"
+            placeholder="Portfolio name (optional — auto-detected)"
             className="w-full px-2 py-1.5 rounded-md bg-slate-800 text-slate-200 text-xs placeholder-slate-500 border border-slate-700 focus:outline-none focus:border-indigo-500"
           />
           <input

@@ -32,16 +32,16 @@ Guidelines:
 MAX_TOOL_ROUNDS = 10  # prevent infinite loops
 
 
-def run_claude_loop(user_message: str, conversation_history: list = None) -> str:
+def run_claude_loop(user_message: str, conversation_history: list = None) -> tuple[str, list]:
     """
     Run the agentic tool call loop.
 
     Args:
         user_message: The RM's query from Slack.
-        conversation_history: Optional prior conversation turns for multi-turn context.
+        conversation_history: Prior conversation turns for multi-turn context.
 
     Returns:
-        Final natural language response string from Claude.
+        (response_text, updated_history) tuple.
     """
     client = get_client()
     messages = list(conversation_history or [])
@@ -60,13 +60,13 @@ def run_claude_loop(user_message: str, conversation_history: list = None) -> str
         messages.append({"role": "assistant", "content": response.content})
 
         if response.stop_reason == "end_turn":
-            # Extract all text blocks as the final answer
             text_blocks = [
                 block.text
                 for block in response.content
                 if hasattr(block, "text") and block.type == "text"
             ]
-            return "\n".join(text_blocks).strip() or "I wasn't able to generate a response."
+            reply = "\n".join(text_blocks).strip() or "I wasn't able to generate a response."
+            return reply, messages
 
         if response.stop_reason == "tool_use":
             # Execute every tool Claude requested and collect results
@@ -82,10 +82,10 @@ def run_claude_loop(user_message: str, conversation_history: list = None) -> str
 
             # Feed tool results back as a user turn
             messages.append({"role": "user", "content": tool_results})
-            # Continue loop — Claude will process results and may call more tools
 
         else:
-            # Unexpected stop reason (e.g., max_tokens)
-            return f"Response was cut short (stop_reason={response.stop_reason}). Please try a more specific question."
+            reply = f"Response was cut short (stop_reason={response.stop_reason}). Please try a more specific question."
+            return reply, messages
 
-    return "I reached the maximum number of tool calls. Please try a more focused question."
+    reply = "I reached the maximum number of tool calls. Please try a more focused question."
+    return reply, messages
