@@ -1,8 +1,7 @@
 """
 PDF upload endpoint.
-- Checks if (portfolio_name, as_of_date) already exists → returns existing snapshot
-- Otherwise: processes PDF → saves raw holdings + derived snapshot to PostgreSQL
-- After saving, creates/skips a Zoho CRM contact for the portfolio owner
+- Always re-processes: clears existing data for the portfolio_name, then ingests fresh.
+- After saving, creates/updates a Zoho CRM contact for the portfolio owner.
 """
 import os
 import shutil
@@ -16,7 +15,6 @@ from config import RAW_DIR
 from ingestion.portfolio_ingestor import (
     ingest_portfolio,
     save_portfolio_snapshot,
-    snapshot_exists,
 )
 from ingestion.db_client import engine
 from portfolio.ai_parser import AIPortfolioParser
@@ -24,6 +22,27 @@ from portfolio.analytics import PortfolioAnalytics
 from agent_tools.zoho_client import upsert_contact
 
 router = APIRouter()
+
+
+def _delete_portfolio_data(portfolio_name: str) -> bool:
+    """
+    Delete all holdings and snapshots for a portfolio.
+    Returns True if anything was deleted, False if portfolio didn't exist.
+    """
+    with engine.begin() as conn:
+        # Get the client_id before deleting snapshots
+        row = conn.execute(
+            text("SELECT zoho_client_id FROM portfolio_snapshots WHERE portfolio_name = :n LIMIT 1"),
+            {"n": portfolio_name},
+        ).fetchone()
+
+        if not row:
+            return False
+
+        client_id = row[0]
+        conn.execute(text("DELETE FROM holdings WHERE client_id = :cid"), {"cid": client_id})
+        conn.execute(text("DELETE FROM portfolio_snapshots WHERE portfolio_name = :n"), {"n": portfolio_name})
+        return True
 
 
 def _get_or_assign_client_id(portfolio_name: str) -> str:
@@ -118,15 +137,8 @@ async def upload_pdf(
     if not portfolio_name or not portfolio_name.strip():
         portfolio_name = parser.extract_portfolio_name(str(save_path))
 
-    # Return existing snapshot without re-processing
-    if snapshot_exists(portfolio_name, parsed_date):
-        return {
-            "message":        "Snapshot already exists — skipped reprocessing.",
-            "portfolio_name": portfolio_name,
-            "client_id":      portfolio_name,
-            "as_of_date":     str(parsed_date),
-            "skipped":        True,
-        }
+    # Clear existing data for this portfolio so the upload is a clean replace
+    _delete_portfolio_data(portfolio_name)
 
     # Parse PDF → full holdings DataFrame
     try:
@@ -207,3 +219,12 @@ async def upload_pdf(
         "risk_profile":       risk_profile,
         "skipped":            False,
     }
+
+
+@router.delete("/{portfolio_name}")
+def delete_portfolio(portfolio_name: str):
+    """Delete all holdings and snapshots for a portfolio."""
+    deleted = _delete_portfolio_data(portfolio_name)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Portfolio '{portfolio_name}' not found.")
+    return {"message": f"Portfolio '{portfolio_name}' deleted.", "portfolio_name": portfolio_name}
