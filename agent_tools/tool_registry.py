@@ -130,6 +130,29 @@ TOOLS = [
         },
     },
     {
+        "name": "scan_market_impact",
+        "description": (
+            "Scan ALL client portfolios against a market event described in plain English "
+            "(e.g. 'US-China trade war', 'Fed rate spike', 'oil price crash', 'tech sector selloff'). "
+            "Claude analyses each portfolio individually using asset allocation, sector concentration, "
+            "geographic exposure and top holdings, then ranks all clients by impact severity. "
+            "Returns per-client: severity (Critical/High/Moderate/Low/Minimal), estimated portfolio loss %, "
+            "vulnerable and resilient holdings, rebalancing actions with trade sizes, "
+            "recommended actions the RM should take, and an executive summary. "
+            "Use this whenever an investment manager asks about market events, scenarios, or which clients are affected."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "event_description": {
+                    "type": "string",
+                    "description": "Natural language description of the market event, e.g. 'Russia-Ukraine war escalation' or '100bps Fed rate hike'",
+                },
+            },
+            "required": ["event_description"],
+        },
+    },
+    {
         "name": "market_impact_analyzer",
         "description": (
             "Analyze which clients are most exposed to a market event "

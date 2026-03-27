@@ -71,10 +71,14 @@ query_unmet_clients — use when:
   • "who needs a visit", "meeting cadence", "clients I haven't seen"
   • default to 30 days; use 14 for "two weeks" / "2 weeks"
 
-market_impact_analyzer — use when:
-  • "who is exposed to [event]", "impact of [market event]"
-  • "rate hike / selloff / crash / slowdown — which clients affected"
-  • "tech exposure", "bond exposure across clients"
+scan_market_impact — use when:
+  • ANY market event is mentioned: war, rate hike/spike, crash, selloff, sanctions, inflation, recession, geopolitical event
+  • "impact of [event]", "which clients affected by [event]", "analyse [event] across portfolios"
+  • "stress test", "scenario analysis", "what happens if..."
+  • Always use this (not market_impact_analyzer) — it scans ALL portfolios automatically with no extra input needed
+
+market_impact_analyzer — use only when:
+  • User explicitly specifies affected asset classes or tickers and wants a quick filter
 
 CLIENT NAME RESOLUTION:
   Known clients: East Asia (CLI001), Euro Alpine (CLI002), Family Office (CLI003),

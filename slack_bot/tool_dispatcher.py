@@ -9,10 +9,12 @@ from agent_tools.query_policies import query_policies
 from agent_tools.market_impact_analyzer import market_impact_analyzer
 from agent_tools.get_client_full_profile import get_client_full_profile
 from agent_tools.query_unmet_clients import query_unmet_clients
+from agent_tools.scan_market_impact import scan_market_impact
 
 TOOL_MAP = {
     "get_client_full_profile": get_client_full_profile,
     "query_unmet_clients":     query_unmet_clients,
+    "scan_market_impact":      scan_market_impact,
     "query_clients":           query_clients,
     "query_portfolio":         query_portfolio,
     "query_policies":          query_policies,
