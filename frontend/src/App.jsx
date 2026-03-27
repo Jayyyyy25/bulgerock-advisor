@@ -19,6 +19,7 @@ export default function App() {
   const [loadingClients, setLoadingClients] = useState(true)
   const [loadingClient, setLoadingClient] = useState(false)
   const [error, setError] = useState(null)
+  const [deletingId, setDeletingId] = useState(null)
 
   // Load client list on mount
   useEffect(() => {
@@ -56,11 +57,42 @@ export default function App() {
       .then(r => r.json())
       .then(d => setClients(d.portfolios || []))
 
+  const deletePortfolio = async (id) => {
+    if (!window.confirm(`Delete portfolio "${formatName(id)}"? This cannot be undone.`)) return
+    setDeletingId(id)
+    try {
+      const res = await fetch(`${API_BASE}/api/upload/${encodeURIComponent(id)}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('Delete failed')
+      await refreshClients()
+      if (selectedId === id) {
+        setSelectedId(null)
+        setClientData(null)
+        setActiveTab('overview')
+      }
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
   const handleUpload = async (file) => {
     if (!file || !file.name.toLowerCase().endsWith('.pdf')) {
       setUploadError('Please select a PDF file.')
       return
     }
+
+    // Warn if portfolio name already exists — upload will replace all existing data
+    if (portfolioName.trim()) {
+      const exists = clients.some(c => c.client_id.toLowerCase() === portfolioName.trim().toLowerCase())
+      if (exists) {
+        if (!window.confirm(`Portfolio "${portfolioName.trim()}" already exists. Uploading will replace all existing data. Continue?`)) {
+          if (fileInputRef.current) fileInputRef.current.value = ''
+          return
+        }
+      }
+    }
+
     setUploading(true)
     setUploadError(null)
     setUploadSuccess(null)
@@ -180,20 +212,34 @@ export default function App() {
             </div>
           )}
           {clients.map(c => (
-            <button
-              key={c.client_id}
-              onClick={() => { setActiveTab('overview'); selectClient(c.client_id) }}
-              className={`w-full text-left px-3 py-3 rounded-lg mb-1 transition-colors ${
-                selectedId === c.client_id
-                  ? 'bg-indigo-600 text-white'
-                  : 'text-slate-300 hover:bg-slate-800'
-              }`}
-            >
-              <div className="text-sm font-medium truncate">{formatName(c.client_id)}</div>
-              <div className="text-xs mt-0.5 opacity-60">
-                ${(c.total_value / 1e6).toFixed(2)}M AUM
-              </div>
-            </button>
+            <div key={c.client_id} className="group relative mb-1">
+              <button
+                onClick={() => { setActiveTab('overview'); selectClient(c.client_id) }}
+                className={`w-full text-left px-3 py-3 rounded-lg transition-colors pr-8 ${
+                  selectedId === c.client_id
+                    ? 'bg-indigo-600 text-white'
+                    : 'text-slate-300 hover:bg-slate-800'
+                }`}
+              >
+                <div className="text-sm font-medium truncate">{formatName(c.client_id)}</div>
+                <div className="text-xs mt-0.5 opacity-60">
+                  ${(c.total_value / 1e6).toFixed(2)}M AUM
+                </div>
+              </button>
+              <button
+                onClick={e => { e.stopPropagation(); deletePortfolio(c.client_id) }}
+                disabled={deletingId === c.client_id}
+                className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded text-slate-400 hover:text-red-400"
+                title="Delete portfolio"
+              >
+                {deletingId === c.client_id
+                  ? <div className="w-3.5 h-3.5 border-b-2 border-slate-400 rounded-full animate-spin" />
+                  : <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                }
+              </button>
+            </div>
           ))}
         </div>
 
