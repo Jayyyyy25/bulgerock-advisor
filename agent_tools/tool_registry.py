@@ -1,65 +1,87 @@
 """
 Claude tool definitions.
-These schemas must exactly match the function signatures in the corresponding tool files.
-The tool_dispatcher maps these names to Python callables.
+
+DATA SOURCES:
+  - Zoho CRM        → client profiles (name, risk profile, AUM, investment objectives, last meeting date)
+  - PostgreSQL       → holdings (raw positions), portfolio_snapshots (derived analytics), policies (insurance)
+
+TOOL SELECTION GUIDE:
+  "Tell me about / overview of [client]"  → get_client_full_profile
+  "Portfolio / allocation / holdings"     → query_clients (name→ID) then query_portfolio
+  "Policies / insurance / coverage"       → query_clients (name→ID) then query_policies  (or query_policies() for all)
+  "List all clients"                      → query_clients (no args)
+  "All policies"                          → query_policies (no args)
+  "Who is exposed to [market event]"      → market_impact_analyzer
 """
 
 TOOLS = [
     {
-        "name": "query_clients",
+        "name": "get_client_full_profile",
         "description": (
-            "Search for wealth management clients by name, advisor, risk profile, or AUM range. "
-            "Returns client profile data including contact info, risk level, and total AUM. "
-            "Use this when the RM asks about specific clients or wants to filter the client book."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "name_contains": {
-                    "type": "string",
-                    "description": "Partial name match (case-insensitive)",
-                },
-                "advisor_id": {
-                    "type": "string",
-                    "description": "Filter by advisor ID (e.g., 'ADV01')",
-                },
-                "risk_profile": {
-                    "type": "string",
-                    "enum": ["conservative", "moderate", "aggressive"],
-                    "description": "Filter by client risk profile",
-                },
-                "min_aum": {
-                    "type": "number",
-                    "description": "Minimum AUM in USD",
-                },
-                "max_aum": {
-                    "type": "number",
-                    "description": "Maximum AUM in USD",
-                },
-                "limit": {
-                    "type": "integer",
-                    "description": "Maximum number of results to return (default: 10)",
-                },
-            },
-        },
-    },
-    {
-        "name": "query_portfolio",
-        "description": (
-            "Get asset class allocation breakdown and top 5 holdings by market value for a specific client. "
-            "Returns allocation percentages (Equity %, Fixed Income %, Cash %, etc.) and individual holding details. "
-            "Use this when the RM asks about a client's portfolio composition or investment mix."
+            "Fetch everything about a single client in one call: "
+            "CRM profile (name, risk, AUM, objectives, last meeting date) from Zoho, "
+            "full portfolio data (asset allocation, sector/geo breakdown, top 10 holdings, risk metrics) from PostgreSQL, "
+            "and all insurance policies from PostgreSQL. "
+            "Use this for general questions like 'tell me about [client]', 'give me a summary of [client]', "
+            "or any request where multiple data types are needed for one client."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "client_id": {
                     "type": "string",
-                    "description": "The unique client identifier (e.g., 'CLI001')",
+                    "description": "Client ID in CLI format (e.g. 'CLI001'). Call query_clients first if you only have a name.",
+                },
+            },
+            "required": ["client_id"],
+        },
+    },
+    {
+        "name": "query_clients",
+        "description": (
+            "Fetch client profiles from Zoho CRM. "
+            "No arguments → returns ALL clients. "
+            "name_contains='East' → searches by name (use last word of company name, e.g. 'Asia', 'Trust', 'Capital'). "
+            "Returns client_id (CLI001–CLI007), full_name, risk_profile, AUM, investment_objectives, last_meeting_date. "
+            "Use to resolve a client name to a client_id, or to list/filter all clients."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name_contains": {
+                    "type": "string",
+                    "description": "Partial last word of client name to search (e.g. 'Asia', 'Trust', 'Alpine', 'Capital', 'Bridge', 'Office', 'Custodian')",
+                },
+                "risk_profile": {
+                    "type": "string",
+                    "enum": ["conservative", "moderate", "aggressive"],
+                    "description": "Filter by risk profile",
+                },
+                "min_aum": {"type": "number", "description": "Minimum AUM in USD"},
+                "max_aum": {"type": "number", "description": "Maximum AUM in USD"},
+                "limit": {"type": "integer", "description": "Max results (default 10)"},
+            },
+        },
+    },
+    {
+        "name": "query_portfolio",
+        "description": (
+            "Fetch portfolio data for one client from PostgreSQL. "
+            "Returns: asset allocation (%), sector concentration (%), geographic exposure (%), "
+            "top 10 holdings by market value, risk metrics, total AUM, as_of_date. "
+            "Use for focused portfolio/allocation/holdings questions about a single client. "
+            "Requires client_id (CLI format). If you only have a name, call query_clients first."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "client_id": {
+                    "type": "string",
+                    "description": "CLI format client ID (e.g. 'CLI001')",
                 },
                 "as_of_date": {
                     "type": "string",
-                    "description": "Date in YYYY-MM-DD format. Defaults to most recent available date.",
+                    "description": "Date YYYY-MM-DD. Defaults to most recent snapshot.",
                 },
             },
             "required": ["client_id"],
@@ -68,20 +90,41 @@ TOOLS = [
     {
         "name": "query_policies",
         "description": (
-            "Scan for insurance policies (Life, Disability, Long-Term Care) renewing within a specified number of days. "
-            "Can filter to a single client or scan all clients. "
-            "Use this for renewal reminders, upcoming policy reviews, or compliance checks."
+            "Fetch insurance policies from PostgreSQL. "
+            "No arguments → ALL policies for ALL clients. "
+            "client_id='CLI006' → policies for that one client only. "
+            "days_ahead=30 → only policies renewing within 30 days. "
+            "Returns: policy_id, client_id, client full_name, policy_type, insurer, coverage_amount, premium, renewal_date, coverage_type. "
+            "Use for any question about insurance, coverage, premiums, or renewals."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "client_id": {
                     "type": "string",
-                    "description": "Optional: filter to a single client's policies",
+                    "description": "Optional CLI client ID to filter to one client",
                 },
                 "days_ahead": {
                     "type": "integer",
-                    "description": "Number of days to look ahead for renewals (default: 30)",
+                    "description": "Optional: only return policies renewing within this many days",
+                },
+            },
+        },
+    },
+    {
+        "name": "query_unmet_clients",
+        "description": (
+            "Find clients who have not been met recently, based on Last_Meeting date in Zoho CRM. "
+            "Use for questions like 'which clients haven't been met in 30 days', 'who needs a follow-up', "
+            "'clients not seen in 2 weeks', or any client engagement / meeting cadence check. "
+            "Returns each client's name, risk profile, AUM, last meeting date, and days since last meeting."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "days": {
+                    "type": "integer",
+                    "description": "Threshold in days. Clients not met within this period are returned. Default 30. Use 14 for 2-week check.",
                 },
             },
         },
@@ -89,31 +132,32 @@ TOOLS = [
     {
         "name": "market_impact_analyzer",
         "description": (
-            "Analyze which clients are most exposed to a hypothetical market event "
-            "(e.g., 'Fed rate hike', 'tech sector selloff', 'oil price spike'). "
-            "Provide affected asset classes or tickers; returns clients above an exposure threshold "
-            "with their exact exposure percentage. Use for risk alerts and proactive RM outreach."
+            "Analyze which clients are most exposed to a market event "
+            "(e.g. 'Fed rate hike', 'China tech crackdown', 'oil spike'). "
+            "Cross-references all client holdings in PostgreSQL against affected asset classes or tickers. "
+            "Returns each affected client's exposure %, exposed value, AUM, and risk profile. "
+            "Use for 'who is exposed to X', risk alerts, or proactive RM outreach questions."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "event_description": {
                     "type": "string",
-                    "description": "Human-readable description of the market event",
+                    "description": "Description of the market event",
                 },
                 "affected_asset_classes": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Asset classes impacted (e.g., ['Fixed Income', 'Equity'])",
+                    "description": "Asset classes impacted (e.g. ['Fixed Income', 'Equities'])",
                 },
                 "affected_tickers": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Specific tickers impacted (e.g., ['TLT', 'BND'])",
+                    "description": "Specific tickers impacted",
                 },
                 "exposure_threshold_pct": {
                     "type": "number",
-                    "description": "Minimum portfolio exposure % to flag a client (default: 10.0)",
+                    "description": "Minimum exposure % to flag a client (default 10.0)",
                 },
             },
             "required": ["event_description"],

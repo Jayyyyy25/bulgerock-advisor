@@ -82,16 +82,23 @@ def create_contact(
     if risk_profile:          record["Risk_Profile"]           = risk_profile
     if aum is not None:       record["AUM"]                    = aum
     if investment_objectives: record["Investment_Objectives"]  = investment_objectives
-    if last_meeting_date:     record["Last_Meeting_Date"]      = last_meeting_date
+    if last_meeting_date:     record["Last_Meeting"]           = last_meeting_date
 
     result = _post("Contacts", {"data": [record]})
     return result.get("data", [{}])[0]
 
 
+_CONTACT_FIELDS = "Client_ID,Full_Name,First_Name,Last_Name,Email,Phone,Risk_Profile,AUM,Investment_Objectives,Last_Meeting,Advisor_ID"
+
+
 def find_contact_by_client_id(client_id: str) -> dict | None:
     """Return the Zoho Contact with matching Client_ID, or None if not found."""
     try:
-        data = _get("Contacts/search", params={"criteria": f"(Client_ID:equals:{client_id})", "per_page": 1})
+        data = _get("Contacts/search", params={
+            "criteria": f"(Client_ID:equals:{client_id})",
+            "fields": _CONTACT_FIELDS,
+            "per_page": 1,
+        })
         records = data.get("data", [])
         return _record_to_client(records[0]) if records else None
     except Exception:
@@ -113,14 +120,16 @@ def upsert_contact(client_id: str, **kwargs) -> dict:
 def _record_to_client(r: dict) -> dict:
     """Normalize a Zoho Contact record to our internal client shape."""
     return {
-        "client_id":    r.get("Client_ID") or r.get("id"),
-        "full_name":    r.get("Full_Name") or f"{r.get('First_Name', '')} {r.get('Last_Name', '')}".strip(),
-        "email":        r.get("Email"),
-        "phone":        r.get("Phone") or r.get("Mobile"),
-        "risk_profile": (r.get("Risk_Profile") or "").lower(),
-        "advisor_id":   r.get("Advisor_ID"),
-        "aum":          r.get("AUM"),
-        "zoho_id":      r.get("id"),
+        "client_id":             r.get("Client_ID") or r.get("id"),
+        "full_name":             r.get("Full_Name") or f"{r.get('First_Name', '')} {r.get('Last_Name', '')}".strip(),
+        "email":                 r.get("Email"),
+        "phone":                 r.get("Phone") or r.get("Mobile"),
+        "risk_profile":          (r.get("Risk_Profile") or "").lower(),
+        "advisor_id":            r.get("Advisor_ID"),
+        "aum":                   r.get("AUM"),
+        "investment_objectives": r.get("Investment_Objectives"),
+        "last_meeting_date":     r.get("Last_Meeting"),
+        "zoho_id":               r.get("id"),
     }
 
 
@@ -143,7 +152,9 @@ def search_contacts(
     criteria_parts = []
 
     if name_contains:
-        criteria_parts.append(f"(Full_Name:contains:{name_contains})")
+        # Zoho only supports equals/starts_with; match the last word of the search term
+        last_word = name_contains.strip().split()[-1]
+        criteria_parts.append(f"(Last_Name:starts_with:{last_word})")
     if risk_profile:
         criteria_parts.append(f"(Risk_Profile:equals:{risk_profile})")
     if advisor_id:
@@ -151,11 +162,10 @@ def search_contacts(
 
     if criteria_parts:
         criteria = "AND".join(criteria_parts)
-        params = {"criteria": criteria, "per_page": limit}
+        params = {"criteria": criteria, "fields": _CONTACT_FIELDS, "per_page": limit}
         data = _get("Contacts/search", params=params)
     else:
-        # No filters — fetch all contacts
-        data = _get("Contacts", params={"per_page": limit})
+        data = _get("Contacts", params={"fields": _CONTACT_FIELDS, "per_page": limit})
 
     records = data.get("data", [])
     clients = [_record_to_client(r) for r in records]

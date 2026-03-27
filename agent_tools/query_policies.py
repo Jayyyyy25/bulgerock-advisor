@@ -9,12 +9,13 @@ from ingestion.db_client import engine
 from agent_tools.zoho_client import get_contacts_by_client_ids
 
 
-def query_policies(client_id: str = None, days_ahead: int = 30) -> str:
-    conditions = [
-        "status = 'active'",
-        "renewal_date BETWEEN CURRENT_DATE AND CURRENT_DATE + :days_ahead",
-    ]
-    params: dict = {"days_ahead": days_ahead}
+def query_policies(client_id: str = None, days_ahead: int = None) -> str:
+    conditions = ["status = 'active'"]
+    params: dict = {}
+
+    if days_ahead is not None:
+        conditions.append("renewal_date BETWEEN CURRENT_DATE AND CURRENT_DATE + :days_ahead")
+        params["days_ahead"] = days_ahead
 
     if client_id:
         conditions.append("client_id = :client_id")

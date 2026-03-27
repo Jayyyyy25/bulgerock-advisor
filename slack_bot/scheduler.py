@@ -22,14 +22,14 @@ def start_scheduler(slack_client) -> BackgroundScheduler:
     """
     scheduler = BackgroundScheduler(timezone="UTC")
 
-    # Daily at 08:00 UTC: post policies renewing in next 7 days
+    # Daily at 08:00 UTC: post policies renewing in next 30 days
     scheduler.add_job(
         post_renewal_alerts,
         trigger=CronTrigger(hour=8, minute=0),
-        kwargs={"slack_client": slack_client, "days_ahead": 7},
+        kwargs={"slack_client": slack_client, "days_ahead": 30},
         id="daily_renewal_alerts",
         replace_existing=True,
-        misfire_grace_time=300,  # tolerate up to 5 min delay
+        misfire_grace_time=300,
     )
 
     scheduler.start()

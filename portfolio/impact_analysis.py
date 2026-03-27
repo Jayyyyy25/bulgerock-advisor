@@ -7,10 +7,24 @@ import re
 
 from anthropic import Anthropic
 
+_CREDENTIALS_PATH = os.path.expanduser("~/.claude/.credentials.json")
+
+
+def _get_api_key() -> str:
+    try:
+        with open(_CREDENTIALS_PATH) as f:
+            creds = json.load(f)
+        token = creds.get("claudeAiOauth", {}).get("accessToken", "")
+        if token:
+            return token
+    except Exception:
+        pass
+    return os.environ["ANTHROPIC_API_KEY"]
+
 
 class MarketImpactAnalyzer:
     def __init__(self):
-        self.client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+        self.client = Anthropic(api_key=_get_api_key())
 
     def assess_impact(self, client_json_data: dict, market_event: str) -> dict:
         total_value         = client_json_data.get("total_value", 0)

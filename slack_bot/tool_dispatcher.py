@@ -7,12 +7,16 @@ from agent_tools.query_clients import query_clients
 from agent_tools.query_portfolio import query_portfolio
 from agent_tools.query_policies import query_policies
 from agent_tools.market_impact_analyzer import market_impact_analyzer
+from agent_tools.get_client_full_profile import get_client_full_profile
+from agent_tools.query_unmet_clients import query_unmet_clients
 
 TOOL_MAP = {
-    "query_clients":          query_clients,
-    "query_portfolio":        query_portfolio,
-    "query_policies":         query_policies,
-    "market_impact_analyzer": market_impact_analyzer,
+    "get_client_full_profile": get_client_full_profile,
+    "query_unmet_clients":     query_unmet_clients,
+    "query_clients":           query_clients,
+    "query_portfolio":         query_portfolio,
+    "query_policies":          query_policies,
+    "market_impact_analyzer":  market_impact_analyzer,
 }
 
 
