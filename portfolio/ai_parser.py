@@ -9,6 +9,20 @@ import pandas as pd
 import pdfplumber
 from anthropic import Anthropic
 
+_CREDENTIALS_PATH = os.path.expanduser("~/.claude/.credentials.json")
+
+
+def _get_api_key() -> str:
+    try:
+        with open(_CREDENTIALS_PATH) as f:
+            creds = json.load(f)
+        token = creds.get("claudeAiOauth", {}).get("accessToken", "")
+        if token:
+            return token
+    except Exception:
+        pass
+    return os.environ["ANTHROPIC_API_KEY"]
+
 CANONICAL_COLUMNS = [
     "security_name", "isin", "quantity", "market_value",
     "asset_class", "sector", "geography",
@@ -42,7 +56,7 @@ COVERAGE_THRESHOLD = 0.80
 
 class AIPortfolioParser:
     def __init__(self):
-        self.client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+        self.client = Anthropic(api_key=_get_api_key())
 
     def extract_portfolio_name(self, file_path: str) -> str:
         """Extract a suitable portfolio name from the first two pages of the PDF."""

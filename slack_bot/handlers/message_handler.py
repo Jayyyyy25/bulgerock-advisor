@@ -13,6 +13,42 @@ from slack_bot.claude_loop import run_claude_loop
 _history: dict[str, list] = {}
 
 
+def _to_blocks(text: str) -> list:
+    """
+    Convert Claude's Slack mrkdwn response into Block Kit blocks.
+    Splits on blank lines so each paragraph/section becomes its own block.
+    Long responses are chunked to stay within Slack's 3000-char block limit.
+    """
+    blocks = []
+    sections = re.split(r"\n{2,}", text.strip())
+
+    for section in sections:
+        section = section.strip()
+        if not section:
+            continue
+
+        # Divider line
+        if re.match(r"^[─\-]{5,}$", section):
+            blocks.append({"type": "divider"})
+            continue
+
+        # Chunk long sections to stay within Slack's 3000 char block limit
+        while len(section) > 2900:
+            chunk = section[:2900]
+            last_newline = chunk.rfind("\n")
+            if last_newline > 0:
+                chunk = section[:last_newline]
+                section = section[last_newline:].strip()
+            else:
+                section = section[2900:]
+            blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": chunk}})
+
+        if section:
+            blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": section}})
+
+    return blocks or [{"type": "section", "text": {"type": "mrkdwn", "text": text[:2900]}}]
+
+
 def register_message_handler(app: App):
     @app.event("app_mention")
     def handle_mention(event, client, logger):
@@ -37,7 +73,7 @@ def _process_message(event: dict, client, logger):
     if not user_text:
         client.chat_postMessage(
             channel=channel,
-            text="Hi! I'm Pocket IA. Ask me about client portfolios, policies, or market impacts.\nType */clear* to reset our conversation.",
+            text="Hi! I'm Pocket IA. Ask me about client portfolios, policies, or market impacts.\nType *clear* to reset our conversation.",
         )
         return
 
@@ -69,13 +105,20 @@ def _process_message(event: dict, client, logger):
         response_text, updated_history = run_claude_loop(user_text, history)
         _history[channel] = updated_history
 
+        blocks = _to_blocks(response_text)
+
         if loading_ts:
             try:
-                client.chat_update(channel=channel, ts=loading_ts, text=response_text)
+                client.chat_update(
+                    channel=channel,
+                    ts=loading_ts,
+                    text=response_text,   # fallback plain text
+                    blocks=blocks,
+                )
             except SlackApiError:
-                client.chat_postMessage(channel=channel, text=response_text)
+                client.chat_postMessage(channel=channel, text=response_text, blocks=blocks)
         else:
-            client.chat_postMessage(channel=channel, text=response_text)
+            client.chat_postMessage(channel=channel, text=response_text, blocks=blocks)
 
     except Exception as e:
         logger.error(f"Claude loop error: {e}", exc_info=True)
