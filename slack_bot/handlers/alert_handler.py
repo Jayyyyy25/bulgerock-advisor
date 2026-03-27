@@ -9,11 +9,12 @@ from agent_tools.query_policies import query_policies
 from agent_tools.market_impact_analyzer import market_impact_analyzer
 
 logger = logging.getLogger(__name__)
-ALERT_CHANNEL = os.environ.get("SLACK_ALERT_CHANNEL", "#wealth-alerts")
+ALERT_CHANNEL  = os.environ.get("SLACK_ALERT_CHANNEL", "#wealth-alerts")
+ALERT_USER_ID  = os.environ.get("SLACK_ALERT_USER_ID", "")
 
 
-def post_renewal_alerts(slack_client, days_ahead: int = 7):
-    """Post upcoming policy renewals to the alert channel."""
+def post_renewal_alerts(slack_client, days_ahead: int = 30):
+    """Post upcoming policy renewals to the alert channel, @mentioning the RM."""
     try:
         raw = query_policies(days_ahead=days_ahead)
         policies = json.loads(raw)
@@ -25,40 +26,86 @@ def post_renewal_alerts(slack_client, days_ahead: int = 7):
         logger.info("No upcoming renewals to alert.")
         return
 
+    # Sort: most urgent first
+    policies = sorted(policies, key=lambda p: p["days_until_renewal"])
+
+    mention = f"<@{ALERT_USER_ID}>" if ALERT_USER_ID else "RM"
+
     blocks = [
         {
             "type": "header",
             "text": {
                 "type": "plain_text",
-                "text": f":bell: Policy Renewals in the Next {days_ahead} Days",
+                "text": f":bell: Policy Renewal Alert — Next {days_ahead} Days",
                 "emoji": True,
+            },
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": (
+                    f"{mention} — *{len(policies)} {'policy requires' if len(policies) == 1 else 'policies require'} "
+                    f"your attention* in the next {days_ahead} days. Please review and action accordingly."
+                ),
             },
         },
         {"type": "divider"},
     ]
 
     for policy in policies:
-        urgency = ":red_circle:" if policy["days_until_renewal"] <= 3 else ":yellow_circle:"
+        days_left = policy["days_until_renewal"]
+        if days_left <= 7:
+            urgency = ":red_circle: *URGENT*"
+        elif days_left <= 14:
+            urgency = ":orange_circle: *Soon*"
+        else:
+            urgency = ":yellow_circle: Upcoming"
+
+        client_name = policy.get("full_name") or policy.get("client_id", "Unknown")
+
         blocks.append({
             "type": "section",
             "fields": [
                 {
                     "type": "mrkdwn",
-                    "text": f"{urgency} *{policy['full_name']}*\n{policy['policy_type']} — {policy['insurer']}",
+                    "text": (
+                        f"{urgency}\n"
+                        f"*Client:* {client_name} ({policy['client_id']})\n"
+                        f"*Policy:* {policy['policy_type']} — _{policy['insurer']}_\n"
+                        f"*Coverage:* {policy.get('coverage_type', 'N/A')}"
+                    ),
                 },
                 {
                     "type": "mrkdwn",
                     "text": (
-                        f"*Renewal:* {policy['renewal_date']}\n"
-                        f"*Days Left:* {policy['days_until_renewal']} | "
-                        f"*Premium:* ${policy['premium']:,.0f}"
+                        f"*Renewal Date:* {policy['renewal_date']}\n"
+                        f"*Days Left:* *{days_left}*\n"
+                        f"*Annual Premium:* ${policy['premium']:,.0f}\n"
+                        f"*Coverage Amount:* ${policy['coverage_amount']:,.0f}"
                     ),
                 },
             ],
         })
+        blocks.append({"type": "divider"})
+
+    # Footer
+    blocks.append({
+        "type": "context",
+        "elements": [
+            {
+                "type": "mrkdwn",
+                "text": ":robot_face: Pocket IA — automated daily renewal check | Contact client to confirm renewal intention before expiry.",
+            }
+        ],
+    })
 
     try:
-        slack_client.chat_postMessage(channel=ALERT_CHANNEL, blocks=blocks)
+        slack_client.chat_postMessage(
+            channel=ALERT_CHANNEL,
+            text=f"{mention} — {len(policies)} policy renewals in the next {days_ahead} days require your attention.",
+            blocks=blocks,
+        )
         logger.info(f"Posted {len(policies)} renewal alerts to {ALERT_CHANNEL}")
     except Exception as e:
         logger.error(f"Failed to post renewal alerts: {e}")
